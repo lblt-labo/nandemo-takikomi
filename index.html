@@ -46,10 +46,11 @@ header.top{position:sticky;top:0;z-index:50;background:rgba(246,239,224,.96);bor
 .wrap{padding:16px clamp(12px,6vw,72px) 8px}
 .card{max-width:640px;margin:0 auto;background:var(--paper);border:2px solid var(--line);border-radius:20px;box-shadow:0 6px 20px rgba(80,50,20,.16);padding:16px clamp(12px,4vw,26px) 24px}
 .card[hidden]{display:none}
-.cardhead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px}
-.cardhead input{border:0;border-bottom:2px dashed var(--line);background:transparent;padding:6px 4px;min-height:44px}
-#titleIn{flex:1 1 220px;font-size:1.15rem;font-weight:700}
-#dateIn{flex:0 0 auto;font-size:.9rem}
+.adate{text-align:center;margin-bottom:4px}
+.adate #aDate{font-size:1.25rem;font-weight:800;letter-spacing:.04em}
+.adate #aTitle{font-size:.95rem;color:var(--sub);word-break:break-all}
+#titleIn{display:block;width:100%;margin-top:12px;min-height:48px;padding:8px 12px;border:2px solid var(--line);border-radius:12px;background:#fff;font-size:1.05rem;font-weight:700}
+#titleIn::placeholder{color:#8a8a8a;font-weight:400}
 .sechead{margin:16px 0 8px;font-size:.98rem;color:var(--accent);border-left:5px solid var(--accent);padding-left:8px}
 
 /* cooker */
@@ -166,10 +167,7 @@ textarea#memo::placeholder{color:#8a8a8a}
 <main class="wrap">
   <!-- 画面A：仕込み -->
   <section class="card" id="viewA" aria-label="仕込み画面">
-    <div class="cardhead">
-      <input id="titleIn" type="text" maxlength="60" aria-label="レシピタイトル" placeholder="レシピ No.1">
-      <input id="dateIn" type="date" aria-label="日付">
-    </div>
+    <div class="adate"><div id="aDate"></div><div id="aTitle"></div></div>
     <div class="cookerWrap">
       <div id="cookerSvgBox"></div>
       <div class="panel">
@@ -188,8 +186,8 @@ textarea#memo::placeholder{color:#8a8a8a}
   <!-- 画面C：できあがり記録 -->
   <section class="card" id="viewC" aria-label="できあがり記録画面" hidden>
     <button type="button" class="btn" id="backA">← 仕込みに戻る</button>
-    <h2 id="cTitle" style="margin:12px 0 0;font-size:1.2rem;word-break:break-all"></h2>
-    <div id="cDate" style="color:var(--sub);font-size:.9rem"></div>
+    <input id="titleIn" type="text" maxlength="60" aria-label="レシピ名（任意）" placeholder="レシピ名を入力（空欄のままでもOK）">
+    <div id="cDate" style="color:var(--sub);font-size:.9rem;font-weight:700;margin-top:6px"></div>
     <div class="status" id="status"></div>
 
     <h2 class="sechead">仕込んだ内容</h2>
@@ -280,9 +278,11 @@ document.addEventListener('DOMContentLoaded', function () {
   var view = 'A';
 
   function newRecipe(title) {
-    return { id: uid(), title: title || ('レシピ No.' + (state.recipes.length + 1)), date: today(), items: [], photo: '', rating: 0, memo: '', cooked: false };
+    return { id: uid(), title: title || '', date: today(), items: [], photo: '', rating: 0, memo: '', cooked: false };
   }
   function cur() { for (var i = 0; i < state.recipes.length; i++) if (state.recipes[i].id === state.currentId) return state.recipes[i]; return null; }
+  function fmtDate(d) { return String(d || '').replace(/-/g, '/'); }
+  function displayName(r) { return (r.title && r.title.trim()) ? r.title.trim() : (fmtDate(r.date) + ' のごはん'); }
   function load() {
     try {
       var raw = store.get(KEY);
@@ -346,12 +346,14 @@ document.addEventListener('DOMContentLoaded', function () {
   function render() {
     var r = cur(); if (!r) return;
     if (view === 'A') {
-      var t = $('#titleIn'), d = $('#dateIn');
-      if (t && t.value !== r.title) t.value = r.title;
-      if (d && d.value !== r.date) d.value = r.date;
+      var ad = $('#aDate'), at = $('#aTitle');
+      if (ad) ad.textContent = fmtDate(r.date);
+      if (at) at.textContent = (r.title && r.title.trim()) ? r.title : '';
       fillList($('#listA'), r, true);
     } else {
-      var ct = $('#cTitle'), cd = $('#cDate'); if (ct) ct.textContent = r.title; if (cd) cd.textContent = r.date;
+      var t = $('#titleIn'), cd = $('#cDate');
+      if (t && t.value !== r.title) t.value = r.title;
+      if (cd) cd.textContent = '📅 ' + fmtDate(r.date) + ((r.title && r.title.trim()) ? '' : '　（一覧・画像では「' + displayName(r) + '」と表示されます）');
       fillList($('#listC'), r, false);
       renderRecord(r);
     }
@@ -525,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function dupRecipe(id) {
     var base = null; state.recipes.forEach(function (r) { if (r.id === id) base = r; });
     if (!base) return;
-    var c = { id: uid(), title: nextVerTitle(base.title), date: today(), items: base.items.map(function (i) { return { id: uid(), type: i.type, name: i.name, amount: i.amount }; }), photo: '', rating: 0, memo: '', cooked: false };
+    var c = { id: uid(), title: nextVerTitle(displayName(base)), date: today(), items: base.items.map(function (i) { return { id: uid(), type: i.type, name: i.name, amount: i.amount }; }), photo: '', rating: 0, memo: '', cooked: false };
     state.recipes.unshift(c); state.currentId = c.id; save(); showView('A');
     toast('🔁 「' + c.title + '」を作りました。材料を引き継いでいます');
   }
@@ -543,10 +545,10 @@ document.addEventListener('DOMContentLoaded', function () {
         save(); render(); toast('削除しました'); openList();
       });
       list.appendChild(h('li', { class: 'ritem' + (r.id === state.currentId ? ' now' : '') }, [
-        h('div', { class: 'rt', text: (r.id === state.currentId ? '▶ ' : '') + r.title }),
+        h('div', { class: 'rt', text: (r.id === state.currentId ? '▶ ' : '') + displayName(r) }),
         h('div', { class: 'rm', text: r.date + '　' + starStr(r.rating) + ' ' + r.rating + '/5　' + (r.photo ? '📷あり　' : '') + '具材' + r.items.filter(function (i) { return i.type === 'gu'; }).length + '品' }),
         h('div', { class: 'rb' }, [
-          h('button', { type: 'button', class: 'btn', onclick: function () { state.currentId = r.id; save(true); closeModal(); showView('A'); toast('「' + r.title + '」を開きました'); } }, ['開く']),
+          h('button', { type: 'button', class: 'btn', onclick: function () { state.currentId = r.id; save(true); closeModal(); showView('A'); toast('「' + displayName(r) + '」を開きました'); } }, ['開く']),
           h('button', { type: 'button', class: 'btn', onclick: function () { closeModal(); dupRecipe(r.id); } }, ['Ver.2を作る']),
           delBtn
         ])
@@ -567,7 +569,7 @@ document.addEventListener('DOMContentLoaded', function () {
       h('ul', null, [
         h('li', { text: '【仕込み画面】炊飯器の「＋ 追加」で、具材・調味料・水加減を追加します。下のリストをタップすると編集・削除できます。色だけでなく、アイコン・ラベル・枠線の形でも区別できます。' }),
         h('li', { text: '「スタート」を押すと安全確認が出ます。OKで湯気の演出が流れ、「スキップ」でいつでも飛ばせます。' }),
-        h('li', { text: '【できあがり記録画面】完成写真・星評価・メモを残せます。写真はカメラ撮影でもアルバムからでもOKです。「← 仕込みに戻る」でいつでも仕込み内容を見直せます。' }),
+        h('li', { text: '【できあがり記録画面】レシピ名（空欄でもOK）・完成写真・星評価・メモを残せます。写真はカメラ撮影でもアルバムからでもOKです。「← 仕込みに戻る」でいつでも仕込み内容を見直せます。' }),
         h('li', { text: '「複製（Ver.2を作る）」で、材料を引き継いだ次のレシピを作れます。' }),
         h('li', { text: '「レシピカードを画像保存」で、1枚のカードをPNG画像として端末に保存できます。' }),
         h('li', { text: 'データはこの端末のブラウザ内だけに保存され、外部には送信されません。ブラウザのデータを消去すると記録も消えますのでご注意ください。' })
@@ -669,8 +671,8 @@ document.addEventListener('DOMContentLoaded', function () {
         ctx.fillStyle = '#fbf6ea'; ctx.strokeStyle = '#c9b79a'; ctx.lineWidth = 4;
         ctx.fillRect(24, 24, W - 48, H - 48); ctx.strokeRect(24, 24, W - 48, H - 48);
         ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-        ctx.fillStyle = '#3b2f26'; ctx.font = 'bold 46px ' + FONT; wrapText(ctx, r.title, M, 120, W - M * 2, 54, 1);
-        ctx.fillStyle = '#6b5b4d'; ctx.font = '26px ' + FONT; ctx.fillText(r.date + '　なんでもたきこみごはん', M, 168);
+        ctx.fillStyle = '#3b2f26'; ctx.font = 'bold 46px ' + FONT; wrapText(ctx, displayName(r), M, 120, W - M * 2, 54, 1);
+        ctx.fillStyle = '#6b5b4d'; ctx.font = '26px ' + FONT; ctx.fillText(((r.title && r.title.trim()) ? fmtDate(r.date) + '　' : '') + 'なんでもたきこみごはん', M, 168);
         var y = 240, cols = { gu: ['#00694f', '#e3f3d9'], cho: ['#8a5300', '#fdeab5'], mizu: ['#0b5a8c', '#dff0fb'] };
         ORDER.forEach(function (t) {
           ctx.fillStyle = cols[t][1]; ctx.fillRect(M, y - 34, W - M * 2, 46);
@@ -753,7 +755,6 @@ document.addEventListener('DOMContentLoaded', function () {
   on('#btnList', 'click', openList);
   on('#btnPass', 'click', openPass);
   on('#titleIn', 'input', function (e) { var r = cur(); if (r) { r.title = e.target.value; saveSoon(); } });
-  on('#dateIn', 'change', function (e) { var r = cur(); if (r && e.target.value) { r.date = e.target.value; save(); toast('日付を更新しました'); } });
   on('#memo', 'input', function (e) { var r = cur(); if (r) { r.memo = e.target.value; saveSoon(); } });
   on('#btnCam', 'click', function () { var f = $('#fileCam'); if (f) f.click(); });
   on('#btnAlbum', 'click', function () { var f = $('#fileAlbum'); if (f) f.click(); });
